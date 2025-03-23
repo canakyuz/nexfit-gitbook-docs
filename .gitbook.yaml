@@ -1,0 +1,14 @@
+root: ./
+
+structure:
+  readme: README.md
+  summary: SUMMARY.md
+
+redirects:
+  docs/README: README.md
+  docs/INSTALLATION: INSTALLATION.md
+  docs/CONTRIBUTING: CONTRIBUTING.md
+  docs/SECURITY: SECURITY.md
+  docs/development/ARCHITECTURE: development/ARCHITECTURE.md
+  docs/development/DATA_MODEL: development/DATA_MODEL.md
+  docs/product/ROADMAP: product/ROADMAP.md 
