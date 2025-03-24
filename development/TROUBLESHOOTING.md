@@ -164,6 +164,135 @@ Bu rehber, NexFit uygulamasının geliştirme, kurulum ve çalıştırma süreç
    redis-cli info
    ```
 
+### PostgreSQL Bağlantı Hataları
+
+PostgreSQL veritabanı bağlantısında sorun yaşıyorsanız, aşağıdaki adımları deneyebilirsiniz:
+
+1. PostgreSQL servisinin çalıştığını kontrol edin:
+
+```bash
+# Linux
+sudo systemctl status postgresql
+
+# macOS
+brew services list | grep postgresql
+```
+
+2. PostgreSQL için doğru bağlantı dizesini kullandığınızdan emin olun:
+
+```
+POSTGRES_URI=postgresql://username:password@localhost:5432/nexfit
+```
+
+3. Erişim izinlerini kontrol edin:
+
+```bash
+# PostgreSQL'in varsayılan portu olan 5432'nin açık olduğundan emin olun
+sudo netstat -nltp | grep 5432
+```
+
+4. PostgreSQL'i manuel olarak başlatın:
+
+```bash
+# Linux
+sudo systemctl start postgresql
+
+# macOS
+brew services start postgresql
+```
+
+5. PostgreSQL log dosyalarını kontrol edin:
+
+```bash
+# Linux
+sudo tail -f /var/log/postgresql/postgresql-14-main.log
+
+# macOS
+tail -f /usr/local/var/log/postgres.log
+```
+
+6. PostgreSQL kullanıcı izinlerini doğrulayın:
+
+```sql
+-- PostgreSQL'e süper kullanıcı olarak bağlanın
+psql -U postgres
+
+-- Kullanıcı izinlerini kontrol edin
+\du
+
+-- Veritabanı izinlerini kontrol edin
+\l
+
+-- Kullanıcı izinlerini güncelleyin (gerekirse)
+ALTER USER nexfit_user WITH PASSWORD 'new_password';
+GRANT ALL PRIVILEGES ON DATABASE nexfit TO nexfit_user;
+```
+
+7. PostgreSQL şema veya tablo hatalarını giderin:
+
+```sql
+-- Şema bilgilerini kontrol edin
+\dn
+
+-- Tablo bilgilerini kontrol edin
+\dt
+
+-- Tabloları sıfırlayın (gerekli durumlarda)
+DROP TABLE IF EXISTS transactions CASCADE;
+```
+
+### Hibrit Veritabanı Sorunları
+
+MongoDB ve PostgreSQL'in birlikte kullanıldığı hibrit sistemde aşağıdaki yaygın sorunlarla karşılaşabilirsiniz:
+
+1. **Veri Tutarsızlığı**:
+
+MongoDB ve PostgreSQL arasında veri tutarsızlığı varsa:
+
+```bash
+# Veri senkronizasyon scriptini çalıştırın
+npm run db:sync
+
+# Veya
+node scripts/db-synchronize.js
+```
+
+2. **İki Fazlı İşlem (Two-Phase Commit) Hataları**:
+
+İki veritabanı arasındaki işlemlerde hata oluşursa:
+
+```bash
+# Askıda kalan işlemleri kontrol edin
+npm run check:pending-transactions
+
+# Manuel olarak işlemleri çözümleyin
+npm run resolve:transactions
+```
+
+3. **Veritabanı Kaynak Kullanımı**:
+
+Her iki veritabanı da yüksek kaynak kullanıyorsa, yapılandırma dosyalarını optimize edin:
+
+- MongoDB: `/etc/mongod.conf`
+- PostgreSQL: `/etc/postgresql/14/main/postgresql.conf`
+
+```bash
+# Her iki veritabanının kaynak kullanımını izleyin
+npm run monitor:db
+```
+
+4. **Kilitlenme ve Performans Sorunları**:
+
+PostgreSQL'de kilitlenme sorunları yaşıyorsanız:
+
+```sql
+-- Aktif kilitleri görüntüleyin
+SELECT * FROM pg_locks pl LEFT JOIN pg_stat_activity psa ON pl.pid = psa.pid;
+
+-- Uzun süren sorguları sonlandırın
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE state = 'active' AND now() - query_start > '5 minutes'::interval;
+```
+
 ## API ve Backend Sorunları
 
 ### API Endpoint Hataları

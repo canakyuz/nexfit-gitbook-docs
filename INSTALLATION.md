@@ -13,6 +13,7 @@ NexFit'i çalıştırmak için aşağıdaki yazılımların kurulu olması gerek
 
 ### Veritabanı
 - MongoDB (v5.0 veya üzeri)
+- PostgreSQL (v14.0 veya üzeri)
 - Redis (v6.2 veya üzeri)
 
 ### Mobil Geliştirme (isteğe bağlı)
@@ -57,6 +58,7 @@ APP_PORT=3000
 
 # Veritabanı Yapılandırması
 MONGODB_URI=mongodb://localhost:27017/nexfit
+POSTGRES_URI=postgresql://postgres:password@localhost:5432/nexfit
 REDIS_URL=redis://localhost:6379
 
 # Kimlik Doğrulama ve Güvenlik
@@ -86,20 +88,43 @@ EMAIL_FROM=info@example.com
 
 ### 4. Veritabanı Kurulumu
 
-MongoDB ve Redis'in kurulu ve çalışır durumda olduğundan emin olun.
+MongoDB, PostgreSQL ve Redis'in kurulu ve çalışır durumda olduğundan emin olun.
 
 ```bash
 # MongoDB başlatma
 mongod --dbpath /path/to/your/data/directory
 
+# PostgreSQL başlatma (Linux)
+sudo systemctl start postgresql
+
+# PostgreSQL başlatma (macOS)
+brew services start postgresql
+
 # Redis başlatma
 redis-server
 ```
 
-İlk kez başlatıyorsanız, veritabanını ve gerekli koleksiyonları oluşturmak için:
+PostgreSQL'de veritabanı ve kullanıcı oluşturma:
 
 ```bash
-# Veritabanı kurulumu
+# PostgreSQL'e bağlanma
+psql -U postgres
+
+# Veritabanı oluşturma
+CREATE DATABASE nexfit;
+
+# Kullanıcı oluşturma ve yetkilendirme
+CREATE USER nexfit_user WITH ENCRYPTED PASSWORD 'secure_password';
+GRANT ALL PRIVILEGES ON DATABASE nexfit TO nexfit_user;
+
+# Bağlantıyı sonlandırma
+\q
+```
+
+İlk kez başlatıyorsanız, veritabanlarını ve gerekli koleksiyonları/tabloları oluşturmak için:
+
+```bash
+# MongoDB ve PostgreSQL kurulumu
 npm run db:setup
 
 # veya

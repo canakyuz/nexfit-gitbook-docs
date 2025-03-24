@@ -1,12 +1,16 @@
 # NexFit Veri Modeli
 
-Bu dokümanda NexFit uygulamasının veritabanı yapısı ve veri modelleri detaylandırılmıştır. MongoDB doküman-tabanlı veritabanı kullanılmaktadır ve modeller arasındaki ilişkiler referanslar ile sağlanmaktadır.
+Bu dokümanda NexFit uygulamasının veritabanı yapısı ve veri modelleri detaylandırılmıştır. NexFit, veri özelliklerine göre iki farklı veritabanı teknolojisi kullanmaktadır:
+
+1. **MongoDB**: Doküman-tabanlı veritabanı olarak, esnek şema gerektiren veriler için kullanılmaktadır.
+2. **PostgreSQL**: İlişkisel veritabanı olarak, finansal veriler ve güçlü ilişkisel bütünlük gerektiren veriler için kullanılmaktadır.
 
 ## Veritabanı Mimarisi
 
 NexFit veritabanı aşağıdaki temel prensiplere dayanmaktadır:
 
-- **Modüler Tasarım:** Her işlevsellik için ayrı koleksiyonlar
+- **Hibrit Yaklaşım:** Veri tipine göre en uygun veritabanının kullanılması
+- **Modüler Tasarım:** Her işlevsellik için ayrı koleksiyonlar/tablolar
 - **Ölçeklenebilirlik:** Yüksek hacimli veri işleme kapasitesi
 - **Esneklik:** Yeni özellikler için kolay genişletilebilirlik
 - **Performans:** Optimum sorgu hızı için indeksleme stratejisi
@@ -676,4 +680,213 @@ Veritabanı şeması değişikliklerini yönetmek için aşağıdaki süreçler 
 1. **Şema Versiyon Yönetimi:** Şema değişikliklerini izleme ve versiyon kontrol
 2. **Aşamalı Migrasyon:** Büyük veri kümeleri için aşamalı migrasyon
 3. **Geri Dönüş Planları:** Her şema değişikliği için geri dönüş planı
-4. **Uygulama-Veritabanı Uyumluluğu:** Geriye dönük uyumluluk garantisi 
+4. **Uygulama-Veritabanı Uyumluluğu:** Geriye dönük uyumluluk garantisi
+
+## PostgreSQL Veri Modelleri
+
+PostgreSQL, NexFit sistemindeki finansal işlemler, raporlama verileri ve güçlü ilişkisel bütünlük gerektiren diğer veriler için kullanılmaktadır. Aşağıda PostgreSQL'de tutulan başlıca tablolar ve ilişkileri açıklanmıştır.
+
+### Tablolar ve İlişkiler
+
+#### 1. `transactions` (İşlemler)
+
+İşletme içindeki tüm finansal işlemleri takip eder.
+
+```sql
+CREATE TABLE transactions (
+    id SERIAL PRIMARY KEY,
+    transaction_id VARCHAR(36) UNIQUE NOT NULL,
+    user_id VARCHAR(24) NOT NULL,  -- MongoDB'deki kullanıcı ID'si
+    amount DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'TRY',
+    payment_method VARCHAR(20) NOT NULL,
+    transaction_type VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    description TEXT,
+    metadata JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX idx_transactions_created_at ON transactions(created_at);
+CREATE INDEX idx_transactions_status ON transactions(status);
+```
+
+#### 2. `subscriptions` (Abonelikler)
+
+Kullanıcı aboneliklerini ve tekrarlayan ödemeleri yönetir.
+
+```sql
+CREATE TABLE subscriptions (
+    id SERIAL PRIMARY KEY,
+    subscription_id VARCHAR(36) UNIQUE NOT NULL,
+    user_id VARCHAR(24) NOT NULL,  -- MongoDB'deki kullanıcı ID'si
+    plan_id VARCHAR(36) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    billing_cycle VARCHAR(20) NOT NULL,
+    billing_day INTEGER,
+    amount DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'TRY',
+    payment_method VARCHAR(20) NOT NULL,
+    auto_renew BOOLEAN NOT NULL DEFAULT TRUE,
+    metadata JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
+CREATE INDEX idx_subscriptions_status ON subscriptions(status);
+CREATE INDEX idx_subscriptions_end_date ON subscriptions(end_date);
+```
+
+#### 3. `invoices` (Faturalar)
+
+Oluşturulan faturaları ve ödeme durumlarını saklar.
+
+```sql
+CREATE TABLE invoices (
+    id SERIAL PRIMARY KEY,
+    invoice_id VARCHAR(36) UNIQUE NOT NULL,
+    transaction_id VARCHAR(36),
+    subscription_id VARCHAR(36),
+    user_id VARCHAR(24) NOT NULL,  -- MongoDB'deki kullanıcı ID'si
+    business_id VARCHAR(24) NOT NULL,  -- MongoDB'deki işletme ID'si
+    total_amount DECIMAL(10, 2) NOT NULL,
+    tax_amount DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'TRY',
+    status VARCHAR(20) NOT NULL,
+    due_date DATE NOT NULL,
+    payment_date DATE,
+    invoice_number VARCHAR(20) UNIQUE NOT NULL,
+    invoice_data JSONB NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (transaction_id) REFERENCES transactions(transaction_id) ON DELETE SET NULL,
+    FOREIGN KEY (subscription_id) REFERENCES subscriptions(subscription_id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_invoices_user_id ON invoices(user_id);
+CREATE INDEX idx_invoices_business_id ON invoices(business_id);
+CREATE INDEX idx_invoices_status ON invoices(status);
+CREATE INDEX idx_invoices_due_date ON invoices(due_date);
+```
+
+#### 4. `analytics_daily` (Günlük Analitik)
+
+Raporlama ve analiz için günlük verileri derler.
+
+```sql
+CREATE TABLE analytics_daily (
+    id SERIAL PRIMARY KEY,
+    business_id VARCHAR(24) NOT NULL,  -- MongoDB'deki işletme ID'si
+    date DATE NOT NULL,
+    new_members INTEGER NOT NULL DEFAULT 0,
+    active_members INTEGER NOT NULL DEFAULT 0,
+    total_revenue DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    class_attendance INTEGER NOT NULL DEFAULT 0,
+    subscription_renewals INTEGER NOT NULL DEFAULT 0,
+    subscription_cancellations INTEGER NOT NULL DEFAULT 0,
+    metrics JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX idx_analytics_daily_business_date ON analytics_daily(business_id, date);
+```
+
+#### 5. `audit_logs` (Denetim Günlükleri)
+
+Denetim ve uyumluluk için gerekli işlem kayıtlarını tutar.
+
+```sql
+CREATE TABLE audit_logs (
+    id SERIAL PRIMARY KEY,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(24),  -- MongoDB'deki kullanıcı ID'si
+    action VARCHAR(50) NOT NULL,
+    previous_state JSONB,
+    new_state JSONB,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
+```
+
+### PostgreSQL - MongoDB Entegrasyonu
+
+NexFit sisteminde PostgreSQL ve MongoDB veritabanları arasında veri entegrasyonu aşağıdaki yöntemlerle sağlanmaktadır:
+
+1. **Referans ID'ler**: PostgreSQL tablolarında MongoDB doküman ID'lerine referans verilir (örn. `user_id`).
+
+2. **Eş Zamanlı İşlemler**: Kritik iş süreçlerinde, her iki veritabanına da veri yazılması gereken durumlarda iki fazlı işlem (two-phase commit) protokolü kullanılır.
+
+3. **Veri Senkronizasyonu**: Düzenli aralıklarla, belirli veriler iki veritabanı arasında senkronize edilir.
+
+4. **Önbellek İlişkileri**: Redis önbellek katmanı, her iki veritabanından gelen verileri birleştirerek performans artışı sağlar.
+
+### PostgreSQL Veri Yönetimi
+
+#### İndeksleme Stratejisi
+
+PostgreSQL'de performans optimizasyonu için kapsamlı bir indeksleme stratejisi uygulanmaktadır:
+
+- **B-Tree İndeksler**: Eşitlik ve aralık sorguları için standart indeksler
+- **GIN İndeksler**: JSONB alanlarında arama yapmak için
+- **Partial İndeksler**: Belirli WHERE koşullarına göre filtrelenmiş veriler için 
+
+#### Veri Bölümleme (Partitioning)
+
+Büyük tablolar, özellikle `transactions` ve `analytics_daily` gibi zaman bazlı veriler için tablo bölümleme uygulanmaktadır:
+
+```sql
+-- Örnek: analytics_daily tablosunu yıllara göre bölümleme
+CREATE TABLE analytics_daily (
+    id SERIAL,
+    business_id VARCHAR(24) NOT NULL,
+    date DATE NOT NULL,
+    -- diğer alanlar
+    PRIMARY KEY (id, date)
+) PARTITION BY RANGE (date);
+
+-- 2023 yılı için bölüm
+CREATE TABLE analytics_daily_2023 PARTITION OF analytics_daily
+    FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
+
+-- 2024 yılı için bölüm  
+CREATE TABLE analytics_daily_2024 PARTITION OF analytics_daily
+    FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
+```
+
+#### Yedekleme ve Kurtarma
+
+PostgreSQL veritabanı için aşağıdaki yedekleme stratejileri uygulanmaktadır:
+
+1. **Günlük Tam Yedekler**: `pg_dump` ile her gün tam yedek alınır
+2. **Sürekli Arşivleme (WAL)**: Write-Ahead Log dosyaları noktasal kurtarma için saklanır
+3. **Otomatik Yedekleme Rotasyonu**: Yedekler 30 gün saklanır ve sonra otomatik olarak arşivlenir
+
+### Veritabanı Erişim Katmanı
+
+PostgreSQL veritabanı ile etkileşim için aşağıdaki araçlar kullanılmaktadır:
+
+1. **Knex.js**: SQL sorgu oluşturucu ve migrasyon aracı
+2. **TypeORM/Sequelize**: ORM (Object-Relational Mapping) çerçevesi
+3. **PostgreSQL İşlevleri**: Karmaşık işlemler için veritabanı içinde tanımlanan işlevler
+4. **pg-promise**: Düşük seviyeli veritabanı erişimi için
+
+### Performans Monitörü
+
+PostgreSQL veritabanı performansını izlemek için aşağıdaki metrikler takip edilmektedir:
+
+1. **Sorgu Performansı**: Yavaş sorgu günlükleri analiz edilir
+2. **Bağlantı Havuzu**: Bağlantı kullanımı ve kaynak tüketimi izlenir
+3. **İndeks Kullanımı**: İndekslerin etkinliği ve kullanım oranları takip edilir
+4. **Tablo Büyüme Oranları**: Veritabanı boyutu ve büyüme hızı izlenir 

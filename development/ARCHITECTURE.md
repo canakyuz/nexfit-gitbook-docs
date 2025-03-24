@@ -218,15 +218,25 @@ NexFit, veri saklama için hibrit bir veritabanı yaklaşımı kullanır:
 - Geliştirici deneyimi: Web geliştiricilerin mobil geliştirmeye kolay geçiş yapabilmesi
 - Topluluk desteği: Geniş topluluk ve ekosistem
 
-### 3. MongoDB Seçimi
+### 3. Hibrit Veritabanı Yaklaşımı
 
-**Karar**: İlişkisel veritabanı yerine MongoDB doküman veritabanı kullanımı.
+**Karar**: Tek bir veritabanı türü yerine, MongoDB ve PostgreSQL'in birlikte kullanıldığı hibrit bir veritabanı yaklaşımı.
 
 **Gerekçe**:
-- Şema esnekliği: Farklı kullanıcı rolleri ve modelleri için esnek veri yapıları
-- Ölçeklenebilirlik: Yatay ölçeklendirme imkanı
-- Performans: Belirli sorgu desenleri için optimize edilmiş performans
-- Geliştirme hızı: JSON benzeri doküman yapısı ile hızlı geliştirme
+- **Veri Çeşitliliği**: Farklı veri tipleri için en uygun veritabanının kullanılması
+- **MongoDB**: Esnek şema gerektiren, hızlı değişen ve karmaşık yapıdaki veriler için kullanılır.
+  - Kullanıcı profilleri
+  - Antrenman programları
+  - Esnek içerik yapıları
+  - Kayıt günlükleri
+- **PostgreSQL**: İlişkisel veri, finansal işlemler ve güçlü ACID uyumluluğu gerektiren veriler için kullanılır.
+  - Finansal işlemler ve faturalandırma kayıtları
+  - İş kritik müşteri verileri
+  - Rapor ve analitik verileri
+  - Güçlü ilişkisel bütünlük gerektiren veriler
+- **Ölçeklenebilirlik**: Her veritabanının güçlü yönlerinden faydalanma imkanı
+- **Performans Optimizasyonu**: Veri tipine ve kullanım senaryosuna göre en uygun veritabanı seçimi 
+- **Risk Dağıtımı**: Tek bir veritabanı teknolojisine bağımlılığın azaltılması
 
 ### 4. GraphQL ve REST Hibrit Yaklaşımı
 
